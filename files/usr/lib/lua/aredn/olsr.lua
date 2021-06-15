@@ -34,7 +34,8 @@
 
 --]]
 require("aredn.http")
-
+require("aredn.utils")
+local ai=require("aredn.info")
 -------------------------------------
 -- Public API is attached to table
 -------------------------------------
@@ -43,6 +44,11 @@ local model = {}
 function model.getOLSRLinks()
   local links=fetch_json("http://127.0.0.1:9090/links")
   return links['links']
+end
+
+function model.getOLSRRoutes()
+  local routes=fetch_json("http://127.0.0.1:9090/routes")
+  return routes['routes']
 end
 
 function model.getOLSRInterfaceType(iface)
@@ -71,20 +77,23 @@ function model.getCurrentNeighbors(RFinfo)
     info[remip]['linkQuality']=v['linkQuality']
     info[remip]['neighborLinkQuality']=v['neighborLinkQuality']
 	  if remhost ~= nil then
-    	host = string.gsub(remhost,"dtdlink%.", "")
+      host = string.lower(remhost)
 	  end
 	  if host ~= nil then
-    	host = string.gsub(host,"mid%d.", "")
+    	host = string.gsub(host,"mid%d+.", "")
+      host = string.gsub(host,"dtdlink%.", "")
+      host = string.gsub(host,".local.mesh$","")
     	info[remip]['hostname']=host
-	  else 
+	  else
 		  info[remip]['hostname']=remip
 	  end
-    -- services
-    -- info[remip]['services']={}
+    
     if info[remip]['linkType'] == "RF" and RFinfo then
       -- get additional info for RF link
-		  require("aredn.utils")
 		  require("iwinfo")
+
+      local radio = ai.getMeshRadioDevice()
+      local bandwidth = tonumber(ai.getChannelBW(radio))
 		  local wlan=get_ifname('wifi')
 		  local RFneighbors=iwinfo['nl80211'].assoclist(wlan)
 		  local mac2node=mac2host()
@@ -100,6 +109,7 @@ function model.getCurrentNeighbors(RFinfo)
 						  info[remip]["noise"]=tonumber(stnInfo.noise)
 						  info[remip]["tx_rate"]=adjust_rate(stnInfo.tx_rate/1000,bandwidth)
 						  info[remip]["rx_rate"]=adjust_rate(stnInfo.rx_rate/1000,bandwidth)
+              info[remip]["expected_throughput"]=adjust_rate(stnInfo.expected_throughput/1000,bandwidth)
 					  end
 				  end
 			  end

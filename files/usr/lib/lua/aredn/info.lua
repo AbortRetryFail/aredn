@@ -37,7 +37,7 @@
 require("uci")
 local aredn_uci = require("aredn.uci")
 require("aredn.utils")
-local olsr=require("aredn.olsr")
+
 -- require("aredn.http")
 local lip=require("luci.ip")
 require("nixio")
@@ -144,9 +144,9 @@ function model.getArednAlert()
 			afile:close()
 		end
 	end
-        if #alert~=0 then return alert                                                                    
-        else return ""                                                                                    
-        end 
+        if #alert~=0 then return alert
+        else return ""
+        end
 end
 
 -------------------------------------
@@ -162,9 +162,9 @@ function model.getLocalAlert()
 			afile:close()
 		end
 	end
-        if #alert~=0 then return alert                                                                    
-        else return ""                                                                                    
-        end 
+        if #alert~=0 then return alert
+        else return ""
+        end
 end
 
 
@@ -283,11 +283,16 @@ function model.all_services()
 		hfile:close()
 		for pos,val in pairs(lines) do
 			local service={}
-			local link,protocol,name = string.match(val,"^([^|]*)|(.+)|([^\t]*)\t#.*")
+			local link,protocol,name,ip = string.match(val,"^([^|]*)|(.+)|([^\t]*)\t#(.*)")
 			if link and protocol and name then
 				service['link']=link
 				service['protocol']=protocol
 				service['name']=name
+				if ip==" my own service" then
+					service['ip']=model.getInterfaceIPAddress("wifi")
+				else
+					service['ip']=ip
+				end
 				table.insert(services,service)
 			end
 		end
@@ -323,7 +328,7 @@ function model.all_hosts()
 				if ip and name then
 					if not string.match(name,"^(dtdlink[.]).*") then
 						if not string.match(name,"^(mid[0-9][.]).*") then
-							host['name']=name
+							host['name']=name:upper()
 							host['ip']=ip
 							table.insert(hosts,host)
 						end
@@ -505,6 +510,21 @@ function model.getCurrentDHCPLeases()
 end
 
 -------------------------------------
+-- Returns Local Host Connection Type
+-------------------------------------
+function model.getLocalCnxType(hostname)
+	if string.match(hostname,"localhost") then
+		return "Loopback"
+	elseif string.match(hostname,"dtdlink") then
+		return "DTD"
+	elseif hostname == string.lower( model.getNodeName() ) then
+		return "RF"
+	else
+		return "LAN"
+	end
+end
+
+-------------------------------------
 -- Returns Local Hosts
 -------------------------------------
 function model.getLocalHosts()
@@ -521,11 +541,14 @@ function model.getLocalHosts()
 				if ip then
 					local entry = {
 						["ip"] = ip,
-						["hostnames"] = { }
+						["hostnames"] = { },
+						["cnxtype"] = ""
 					}
 					local index = 0
 					for hostname in entries:gmatch("%S+") do
-						entry["hostnames"][index] = hostname
+						hostname = string.gsub(hostname,".local.mesh$","")
+						entry["cnxtype"] = model.getLocalCnxType(hostname)
+						entry["hostnames"][index] = hostname:upper()
 						index = index + 1
 					end
 					hosts = hosts or { }

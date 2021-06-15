@@ -46,14 +46,23 @@ function round2(num, idp)
 end
 
 function adjust_rate(r,b)
-	local ar=r
+	local ar
 	if b==5 then
-		ar=round2(ar/4,1)
+		ar=round2(r/4,1)
 	elseif b==10 then
-		ar=round2(ar/2,1)
+		ar=round2(r/2,1)
 	end
 	return ar
 end
+
+function starts_with(str, start)
+   return str:sub(1, #start) == start
+end
+
+function ends_with(str, ending)
+   return ending == "" or str:sub(-#ending) == ending
+end
+
 
 function string:split(delim)
 	local t = {}
@@ -247,6 +256,38 @@ function nslookup(ip)
                 end
         end
 end
+
+-------------------------------------
+-- Returns traceroute
+-------------------------------------
+function getTraceroute(target)
+	local info={}
+	local routes={}
+	trall=capture('/bin/traceroute -q1 ' .. target )
+	local lines = trall:splitNewLine()
+
+	table.remove(lines, 1)	-- remove heading
+	table.remove(lines, #lines) -- remove blank last line
+
+	data = {}
+	priortime = 0
+	for i,v in pairs(lines) do
+		data = v:splitWhiteSpace()
+		entry = {}
+		node = data[2]:gsub("^mid[0-9]*%.","") 	-- strip midXX.
+		node = node:gsub("^dtdlink%.","")		-- strip dtdlink.
+		node = node:gsub("%.local%.mesh$","")	-- strip .local.mesh
+		entry['nodename'] = node
+		ip = data[3]:match("%((.*)%)")
+		entry['ip'] = ip
+		entry['timeto'] = round2(data[4])
+		entry['timedelta'] = math.abs(round2(data[4] - priortime))
+		priortime = round2(data[4])
+		table.insert(routes, entry)
+	end
+	return routes
+end
+
 
 function file_trim(filename, maxl)
 	local lines={}
